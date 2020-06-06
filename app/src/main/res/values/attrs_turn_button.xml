@@ -1,0 +1,5 @@
+<resources>
+    <declare-styleable name="TouchButtonView">
+        <attr name="colorOnPress" format="color" />
+    </declare-styleable>
+</resources>

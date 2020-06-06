@@ -1,0 +1,9 @@
+<resources>
+    <declare-styleable name="JoystickView">
+        <attr name="backgroundColor" format="color" />
+        <attr name="moverColor" format="color" />
+
+        <attr name="backgroundRatio" format="float" />
+        <attr name="moverRatio" format="float" />
+    </declare-styleable>
+</resources>

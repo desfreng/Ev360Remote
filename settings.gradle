@@ -1,0 +1,2 @@
+rootProject.name='Ev360Remote'
+include ':app'

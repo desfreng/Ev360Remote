@@ -1,0 +1,10 @@
+<resources>
+    <declare-styleable name="PowerView">
+        <attr name="normalColor" format="color" />
+        <attr name="waitingColor" format="color" />
+        <attr name="backgroundBorderColor" format="color" />
+
+        <attr name="borderSize" format="integer" />
+        <attr name="widthRatio" format="float" />
+    </declare-styleable>
+</resources>

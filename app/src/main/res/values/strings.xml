@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Ev360Remote</string>
+
+    <string name="device_scan">Scan for devices</string>
+    <string name="device_loading">Loading…</string>
+    <string name="device_scanning">Scanning…</string>
+    <string name="device_unknown">Unknown</string>
+
+    <string name="device_msg">This application requires activating bluetooth.</string>
+    <string name="device_on">Toggle on</string>
+    <string name="device_off">Let it off</string>
+
+    <string name="device_found">De you want to connect to : <cite>%1$s</cite> ? It seems to be the target server !</string>
+    <string name="device_use">Yes</string>
+    <string name="device_wait">No</string>
+
+    <string name="permission_msg">This application requires this permission to discover nearby bluetooth device.</string>
+    <string name="permission_ok">I understand</string>
+    <string name="permission_ko">I disagree</string>
+    <string name="permission_textView">Checking app permissions… It will finish promptly !</string>
+
+    <string name="toast_device_abort">No device selected. Exiting…</string>
+    <string name="toast_permission_abort">Permission not granted by user. Exiting…</string>
+    <string name="toast_device_found">End of discovery !</string>
+    <string name="disconnect_action">Disconnect</string>
+    <string name="info_action">Infos</string>
+</resources>
