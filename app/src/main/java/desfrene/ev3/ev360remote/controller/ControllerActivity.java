@@ -2,6 +2,8 @@ package desfrene.ev3.ev360remote.controller;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.Menu;
@@ -9,6 +11,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.GestureDetectorCompat;
@@ -29,6 +32,8 @@ public class ControllerActivity extends AppCompatActivity {
     TouchButtonView turnRight;
     TouchButtonView turnLeft;
 
+    BluetoothPipe pipe;
+
     private GestureDetectorCompat mDetector;
 
     @SuppressLint("ClickableViewAccessibility")
@@ -36,6 +41,9 @@ public class ControllerActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_controller);
+
+        pipe = new BluetoothPipe(mHandler);
+
         mDetector = new GestureDetectorCompat(this, new MyGestureListener());
 
         hideSystemUI();
@@ -270,5 +278,31 @@ public class ControllerActivity extends AppCompatActivity {
         inflater.inflate(R.menu.controller_menu, menu);
         return true;
     }
+
+    @SuppressLint("HandlerLeak")
+    private final Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case Constants.BYTES_READ:
+                    byte[] writeBuf = (byte[]) msg.obj;
+                    String stringBuffer = new String(writeBuf);
+                    // TODO : Use data received
+                    break;
+                case Constants.CONNECTION_LOST:
+                    Toast.makeText(getApplicationContext(), R.string.connection_lost, Toast.LENGTH_SHORT).show();
+
+                    break;
+                case Constants.CONNECTION_FAILED:
+                    Toast.makeText(getApplicationContext(), R.string.connection_failed, Toast.LENGTH_SHORT).show();
+
+                    break;
+                case Constants.CONNECTED:
+                    String deviceName = msg.getData().getString(Constants.DEVICE_NAME);
+                    Toast.makeText(getApplicationContext(), getString(R.string.connected, deviceName), Toast.LENGTH_SHORT).show();
+                    break;
+            }
+        }
+    };
 
 }
