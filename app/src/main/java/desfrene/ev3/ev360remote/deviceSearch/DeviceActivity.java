@@ -7,12 +7,13 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Configuration;
 import android.os.Bundle;
-import android.os.ParcelUuid;
-import android.os.Parcelable;
+import android.text.InputType;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -22,19 +23,18 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
-import desfrene.ev3.ev360remote.Constants;
 import desfrene.ev3.ev360remote.R;
+
+import static desfrene.ev3.ev360remote.Constants.TARGET_DEVICE;
+import static desfrene.ev3.ev360remote.Constants.TARGET_CHANNEL;
 
 public class DeviceActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
-    public static final String TARGET_DEVICE = "ev360rotate.targetDevice";
 
     List<BluetoothDevice> deviceList = new ArrayList<>();
     List<String> macList = new ArrayList<>();
-    List<String> doNotDiscover = new ArrayList<>();
     DeviceAdapter displayAdapter;
 
     BluetoothAdapter adapter;
@@ -59,7 +59,7 @@ public class DeviceActivity extends AppCompatActivity {
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                confirmDevice(deviceList.get(position));
+                getChannelDevice(deviceList.get(position));
             }
         });
         adapter = BluetoothAdapter.getDefaultAdapter();
@@ -91,6 +91,7 @@ public class DeviceActivity extends AppCompatActivity {
         filter.addAction(BluetoothDevice.ACTION_FOUND);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        filter.addAction(BluetoothDevice.ACTION_UUID);
         registerReceiver(receiver, filter);
 
         but.setEnabled(true);
@@ -121,8 +122,6 @@ public class DeviceActivity extends AppCompatActivity {
                         deviceList.add(device1);
                         macList.add(device1.getAddress());
                         displayAdapter.notifyDataSetChanged();
-
-                        device1.fetchUuidsWithSdp();
                     }
 
                     break;
@@ -139,25 +138,6 @@ public class DeviceActivity extends AppCompatActivity {
                     but.setText(R.string.device_scan);
                     but.setEnabled(true);
                     break;
-                case BluetoothDevice.ACTION_UUID:
-                    BluetoothDevice device2 = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                    Parcelable[] found_uuid_list = intent.getParcelableArrayExtra(BluetoothDevice.EXTRA_UUID);
-
-                    if (device2 == null || found_uuid_list == null) {
-                        return;
-                    }
-
-                    if (doNotDiscover.contains(device2.getAddress())) {
-                        return;
-                    }
-
-                    for (Parcelable uuid : found_uuid_list) {
-                        UUID uid = ((ParcelUuid) uuid).getUuid();
-
-                        if (uid.equals(Constants.TARGET_UUID)) {
-                            autoFoundDeviceDialog(device2);
-                        }
-                    }
             }
         }
     };
@@ -166,21 +146,17 @@ public class DeviceActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        switch (requestCode) {
-            case REQUEST_ENABLE_BT:
-                if (resultCode == RESULT_OK) {
-                    enableReceiver();
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == RESULT_OK) {
+                enableReceiver();
+            } else {
+                if (bluetoothDiscaredByUser) {
+                    abortedByUser();
                 } else {
-                    if (bluetoothDiscaredByUser) {
-                        abortedByUser();
-                    } else {
-                        bluetoothDiscaredByUser = true;
-                        requestBluetoothDialog();
-                    }
+                    bluetoothDiscaredByUser = true;
+                    requestBluetoothDialog();
                 }
-                break;
-            default:
-                break;
+            }
         }
     }
 
@@ -201,21 +177,25 @@ public class DeviceActivity extends AppCompatActivity {
                 .show();
     }
 
-    private void autoFoundDeviceDialog(final BluetoothDevice dev) {
-        new AlertDialog.Builder(this)
-                .setMessage(getString(R.string.device_found, dev.getName()))
-                .setPositiveButton(R.string.device_use, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        confirmDevice(dev);
-                    }
-                })
-                .setNegativeButton(R.string.device_wait, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        doNotDiscover.add(dev.getAddress());
-                    }
-                })
-                .create()
-                .show();
+    private void getChannelDevice(final BluetoothDevice dev) {
+        AlertDialog.Builder alert = new AlertDialog.Builder(this);
+        alert.setTitle(R.string.device_choose_title);
+        alert.setMessage(R.string.device_choose_text);
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setRawInputType(Configuration.KEYBOARD_12KEY);
+        alert.setView(input);
+        alert.setPositiveButton(R.string.device_choose_use, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int whichButton) {
+                confirmDevice(dev, Integer.parseInt(input.getText().toString()));
+            }
+        });
+        alert.setNegativeButton(R.string.device_choose_abort, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int whichButton) {
+            }
+        });
+        alert.show();
+
     }
 
     private void abortedByUser() {
@@ -223,9 +203,10 @@ public class DeviceActivity extends AppCompatActivity {
         finish();
     }
 
-    private void confirmDevice(BluetoothDevice dev) {
+    private void confirmDevice(BluetoothDevice dev, int channel) {
         Intent returnData = new Intent();
         returnData.putExtra(TARGET_DEVICE, dev.getAddress());
+        returnData.putExtra(TARGET_CHANNEL, channel);
         setResult(RESULT_OK, returnData);
         finish();
     }

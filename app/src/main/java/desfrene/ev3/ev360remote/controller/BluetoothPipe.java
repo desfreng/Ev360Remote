@@ -3,7 +3,6 @@ package desfrene.ev3.ev360remote.controller;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -12,12 +11,18 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 
-import desfrene.ev3.ev360remote.Constants;
+import static desfrene.ev3.ev360remote.Constants.BLE_TAG;
+import static desfrene.ev3.ev360remote.Constants.CONNECTED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_CLOSED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_FAILED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_LOST;
+import static desfrene.ev3.ev360remote.Constants.DEVICE_NAME;
 
 public class BluetoothPipe {
-    private static final String TAG = "BluetoothChatService";
-
     // Member fields
     private final BluetoothAdapter mAdapter;
     private final Handler mHandler;
@@ -32,13 +37,13 @@ public class BluetoothPipe {
         mConnectedThread = null;
     }
 
-    public synchronized void connect(BluetoothDevice device) {
-        Log.d(TAG, "connect to: " + device);
+    public synchronized void connect(BluetoothDevice device, int channel) {
+        Log.d(BLE_TAG, "connect to: " + device + "@" + channel);
 
         stop();
 
         // Start the thread to connect with the given device
-        mConnectThread = new ConnectThread(device);
+        mConnectThread = new ConnectThread(device, channel);
         mConnectThread.start();
     }
 
@@ -49,15 +54,15 @@ public class BluetoothPipe {
         mConnectedThread.start();
 
         // Send the name of the connected device back to the UI Activity
-        Message msg = mHandler.obtainMessage(Constants.CONNECTED);
+        Message msg = mHandler.obtainMessage(CONNECTED);
         Bundle bundle = new Bundle();
-        bundle.putString(Constants.DEVICE_NAME, device.getName());
+        bundle.putString(DEVICE_NAME, device.getName());
         msg.setData(bundle);
         mHandler.sendMessage(msg);
     }
 
     public synchronized void stop() {
-        Log.d(TAG, "stop");
+        Log.d(BLE_TAG, "stop");
 
         // Cancel any thread currently running a connection
         if (mConnectThread != null) {
@@ -88,33 +93,34 @@ public class BluetoothPipe {
 
     private void connectionFailed() {
         // Send a failure message back to the Activity
-        mHandler.obtainMessage(Constants.CONNECTION_FAILED).sendToTarget();
+        mHandler.obtainMessage(CONNECTION_FAILED).sendToTarget();
     }
 
     private void connectionLost() {
         // Send a failure message back to the Activity
-        mHandler.obtainMessage(Constants.CONNECTION_LOST).sendToTarget();
+        mHandler.obtainMessage(CONNECTION_LOST).sendToTarget();
     }
 
     private class ConnectThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final BluetoothDevice mmDevice;
 
-        public ConnectThread(BluetoothDevice device) {
+        public ConnectThread(BluetoothDevice device, int channel) {
             mmDevice = device;
             BluetoothSocket tmp = null;
 
             // Get a BluetoothSocket for a connection with the given BluetoothDevice
             try {
-                tmp = device.createRfcommSocketToServiceRecord(Constants.TARGET_UUID);
-            } catch (IOException e) {
-                Log.e(TAG, "Socket create() failed", e);
+                Method m = device.getClass().getMethod("createRfcommSocket", new Class[]{int.class});
+                tmp = (BluetoothSocket) m.invoke(device, channel);
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                Log.e(BLE_TAG, "Socket create() failed", e);
             }
             mmSocket = tmp;
         }
 
         public void run() {
-            Log.i(TAG, "BEGIN mConnectThread");
+            Log.i(BLE_TAG, "BEGIN mConnectThread");
             setName("ConnectThread");
 
             // Always cancel discovery because it will slow down a connection
@@ -130,7 +136,7 @@ public class BluetoothPipe {
                 try {
                     mmSocket.close();
                 } catch (IOException e2) {
-                    Log.e(TAG, "unable to close() socket during connection failure", e2);
+                    Log.e(BLE_TAG, "unable to close() socket during connection failure", e2);
                 }
                 connectionFailed();
                 return;
@@ -149,7 +155,7 @@ public class BluetoothPipe {
             try {
                 mmSocket.close();
             } catch (IOException e) {
-                Log.e(TAG, "close() of connected socket failed", e);
+                Log.e(BLE_TAG, "close() of connected socket failed", e);
             }
         }
     }
@@ -161,7 +167,7 @@ public class BluetoothPipe {
         private boolean connected;
 
         public ConnectedThread(BluetoothSocket socket) {
-            Log.d(TAG, "create ConnectedThread");
+            Log.d(BLE_TAG, "create ConnectedThread");
             mmSocket = socket;
             InputStream tmpIn = null;
             OutputStream tmpOut = null;
@@ -172,7 +178,7 @@ public class BluetoothPipe {
                 tmpIn = socket.getInputStream();
                 tmpOut = socket.getOutputStream();
             } catch (IOException e) {
-                Log.e(TAG, "temp sockets not created", e);
+                Log.e(BLE_TAG, "temp sockets not created", e);
             }
 
             mmInStream = tmpIn;
@@ -180,20 +186,24 @@ public class BluetoothPipe {
         }
 
         public void run() {
-            Log.i(TAG, "BEGIN mConnectedThread");
+            Log.i(BLE_TAG, "BEGIN mConnectedThread");
             byte[] buffer = new byte[1024];
-            int bytes;
 
             // Keep listening to the InputStream while connected
             while (connected) {
                 try {
                     // Read from the InputStream
-                    bytes = mmInStream.read(buffer);
+                    int read = mmInStream.read(buffer);
 
-                    // Send the obtained bytes to the UI Activity
-                    mHandler.obtainMessage(Constants.BYTES_READ, bytes, -1, buffer).sendToTarget();
+                    String str = new String(buffer, StandardCharsets.US_ASCII);
+
+                    if (read > 0 && str.contains("ST")) {
+                        cancel();
+                    } else {
+                        Log.w(BLE_TAG, String.format("Passing over message : %s", str));
+                    }
                 } catch (IOException e) {
-                    Log.e(TAG, "disconnected", e);
+                    Log.e(BLE_TAG, "disconnected", e);
                     connectionLost();
                     break;
                 }
@@ -204,15 +214,17 @@ public class BluetoothPipe {
             try {
                 mmOutStream.write(buffer);
             } catch (IOException e) {
-                Log.e(TAG, "Exception during write", e);
+                Log.e(BLE_TAG, "Exception during write", e);
             }
         }
 
         public void cancel() {
             try {
+                write("ST".getBytes());
                 mmSocket.close();
+                mHandler.obtainMessage(CONNECTION_CLOSED).sendToTarget();
             } catch (IOException e) {
-                Log.e(TAG, "close() of socket failed", e);
+                Log.e(BLE_TAG, "close() of socket failed", e);
             } finally {
                 connected = false;
             }

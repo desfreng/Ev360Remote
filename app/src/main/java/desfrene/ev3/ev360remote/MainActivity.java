@@ -21,12 +21,18 @@ import java.util.Objects;
 import desfrene.ev3.ev360remote.controller.ControllerActivity;
 import desfrene.ev3.ev360remote.deviceSearch.DeviceActivity;
 
+import static desfrene.ev3.ev360remote.Constants.CONNECTED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_CLOSED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_FAILED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_LOST;
 import static desfrene.ev3.ev360remote.Constants.FCT_TAG;
+import static desfrene.ev3.ev360remote.Constants.TARGET_CHANNEL;
+import static desfrene.ev3.ev360remote.Constants.TARGET_DEVICE;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int DEVICE_ADDRESS = 1;
-    private static final int TEST = 2;
+    private static final int DEVICE_CONTROL = 2;
 
     private static final int REQUEST_BLUETOOTH_PERMISSION = 1;
     private static final int REQUEST_BLUETOOTH_ADMIN_PERMISSION = 2;
@@ -37,9 +43,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-//        checkPermissions();
-
-        startActivityForResult(new Intent(this, ControllerActivity.class), TEST);
+        checkPermissions();
     }
 
     @Override
@@ -48,20 +52,48 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case DEVICE_ADDRESS:
                 if (resultCode == RESULT_OK) {
-                    String address = Objects.requireNonNull(data).getStringExtra(DeviceActivity.TARGET_DEVICE);
-                    Toast.makeText(this, String.format("Target Device %s", address), Toast.LENGTH_LONG).show();
-                    finish();
+                    String address = Objects.requireNonNull(data).getStringExtra(TARGET_DEVICE);
+                    int channel = Objects.requireNonNull(data).getIntExtra(TARGET_CHANNEL, 1);
+                    Intent intent = new Intent(this, ControllerActivity.class);
+                    intent.putExtra(TARGET_DEVICE, address);
+                    intent.putExtra(TARGET_CHANNEL, channel);
+                    startActivityForResult(intent, DEVICE_CONTROL);
                 } else {
                     Toast.makeText(this, R.string.toast_device_abort, Toast.LENGTH_LONG).show();
                     finish();
                 }
                 break;
-            case TEST:
-                finish();
-                break;
-            default:
-                break;
+            case DEVICE_CONTROL:
+                switch (resultCode) {
+                    case CONNECTION_FAILED:
+                        tryConnect(R.string.connection_failed_reconnect);
+                        break;
+                    case CONNECTION_LOST:
+                        tryConnect(R.string.connection_lost_reconnect);
+                        break;
+                    case CONNECTION_CLOSED:
+                        finish();
+                        break;
+                }
         }
+    }
+
+    private void tryConnect(int msg) {
+        new AlertDialog.Builder(this)
+                .setMessage(msg)
+                .setPositiveButton(R.string.reconnect_ok, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        checkPermissions();
+                    }
+                })
+                .setNegativeButton(R.string.reconnect_ko, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        finish();
+                    }
+                })
+                .create()
+                .show();
+
     }
 
     private void checkPermissions() {

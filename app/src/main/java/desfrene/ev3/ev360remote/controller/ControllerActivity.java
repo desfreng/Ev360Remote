@@ -1,6 +1,8 @@
 package desfrene.ev3.ev360remote.controller;
 
 import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -23,7 +25,11 @@ import desfrene.ev3.ev360remote.controller.customsViews.JoystickView;
 import desfrene.ev3.ev360remote.controller.customsViews.PowerView;
 import desfrene.ev3.ev360remote.controller.customsViews.TouchButtonView;
 
-import static desfrene.ev3.ev360remote.Constants.INFO_TAG;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_CLOSED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_FAILED;
+import static desfrene.ev3.ev360remote.Constants.CONNECTION_LOST;
+import static desfrene.ev3.ev360remote.Constants.TARGET_CHANNEL;
+import static desfrene.ev3.ev360remote.Constants.TARGET_DEVICE;
 
 public class ControllerActivity extends AppCompatActivity {
 
@@ -35,6 +41,8 @@ public class ControllerActivity extends AppCompatActivity {
     BluetoothPipe pipe;
 
     private GestureDetectorCompat mDetector;
+    BluetoothDevice dev;
+    boolean connect;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -42,10 +50,14 @@ public class ControllerActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_controller);
 
+        String address = getIntent().getStringExtra(TARGET_DEVICE);
+        int channel = getIntent().getIntExtra(TARGET_CHANNEL, 1);
+        dev = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address);
+
         pipe = new BluetoothPipe(mHandler);
+        pipe.connect(dev, channel);
 
         mDetector = new GestureDetectorCompat(this, new MyGestureListener());
-
         hideSystemUI();
 
         joystick = findViewById(R.id.joystickTest);
@@ -136,14 +148,19 @@ public class ControllerActivity extends AppCompatActivity {
         return super.onTouchEvent(event);
     }
 
+    @SuppressLint("DefaultLocale")
     void setPower(int power) {
         Log.i(Constants.DATA_TAG, String.format("Power : %d", power));
+        pipe.write(String.format("PO#%d", power).getBytes());
     }
 
+    @SuppressLint("DefaultLocale")
     void setDirection(int angle) {
         Log.i(Constants.DATA_TAG, String.format("Angle : %d°", angle));
+        pipe.write(String.format("DI#%d", angle).getBytes());
     }
 
+    @SuppressLint("DefaultLocale")
     void setTurningLeft() {
         powerView.setOperational(true);
 
@@ -151,9 +168,11 @@ public class ControllerActivity extends AppCompatActivity {
         joystick.setOperational(false);
 
         Log.i(Constants.FCT_TAG, "TurningLeft");
-        log();
+        pipe.write("TL#".getBytes());
+        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
     }
 
+    @SuppressLint("DefaultLocale")
     void setTurningRight() {
         powerView.setOperational(true);
 
@@ -161,7 +180,8 @@ public class ControllerActivity extends AppCompatActivity {
         joystick.setOperational(false);
 
         Log.i(Constants.FCT_TAG, "TurningRight");
-        log();
+        pipe.write("TL#".getBytes());
+        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
     }
 
     void resetWheels() {
@@ -173,10 +193,11 @@ public class ControllerActivity extends AppCompatActivity {
         turnRight.setOperational(true);
         turnLeft.setOperational(true);
 
-        log();
+        pipe.write("RW#".getBytes());
     }
 
 
+    @SuppressLint("DefaultLocale")
     void startDirection() {
 
         powerView.setOperational(true);
@@ -185,7 +206,8 @@ public class ControllerActivity extends AppCompatActivity {
         turnLeft.setOperational(false);
 
         Log.i(Constants.FCT_TAG, "Start Direction Track");
-        log();
+        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
+
     }
 
     void resetDirection() {
@@ -196,8 +218,6 @@ public class ControllerActivity extends AppCompatActivity {
         turnRight.setOperational(true);
         turnLeft.setOperational(true);
         joystick.setOperational(true);
-
-        log();
     }
 
 
@@ -208,7 +228,6 @@ public class ControllerActivity extends AppCompatActivity {
         turnLeft.setOperational(true);
 
         Log.i(Constants.FCT_TAG, "Start Power Track");
-        log();
     }
 
     void resetPower() {
@@ -217,21 +236,8 @@ public class ControllerActivity extends AppCompatActivity {
 
         turnRight.setOperational(true);
         turnLeft.setOperational(true);
-        log();
-    }
 
-
-    void log() {
-        Log.i(INFO_TAG, String.format("Joystick Tracking : %b", joystick.isOperational()));
-        Log.i(INFO_TAG, String.format("Right Tracking : %b", joystick.isOperational()));
-        Log.i(INFO_TAG, String.format("Left Tracking : %b", joystick.isOperational()));
-        Log.i(INFO_TAG, String.format("Joystick : %b", joystick.isOperational()));
-//        Log.i(TAG_2, String.format("PowerView : %b", powerView.isWaiting()));
-//        Log.i(TAG_2, String.format("Left : %b", turnLeft.isOperational()));
-//        Log.i(TAG_2, String.format("Right : %b", turnRight.isOperational()));
-//
-//        Log.i(TAG_2, String.format("Pressed Left : %b", turnLeft.isButtonPressed()));
-//        Log.i(TAG_2, String.format("Pressed Right : %b", turnRight.isButtonPressed()));
+        pipe.write("PO#0".getBytes());
     }
 
     class MyGestureListener extends GestureDetector.SimpleOnGestureListener {
@@ -258,18 +264,12 @@ public class ControllerActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.disconnect:
-                Log.i(Constants.FCT_TAG, "Disconnect From Server");
-                return true;
-
-            case R.id.info:
-                Log.i(Constants.FCT_TAG, "Show Information");
-                return true;
-
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.disconnect) {
+            Log.i(Constants.FCT_TAG, "Disconnect From Server");
+            pipe.stop();
+            return true;
         }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -284,22 +284,25 @@ public class ControllerActivity extends AppCompatActivity {
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-                case Constants.BYTES_READ:
-                    byte[] writeBuf = (byte[]) msg.obj;
-                    String stringBuffer = new String(writeBuf);
-                    // TODO : Use data received
-                    break;
-                case Constants.CONNECTION_LOST:
+                case CONNECTION_LOST:
                     Toast.makeText(getApplicationContext(), R.string.connection_lost, Toast.LENGTH_SHORT).show();
-
+                    setResult(CONNECTION_LOST);
+                    finish();
                     break;
-                case Constants.CONNECTION_FAILED:
+                case CONNECTION_FAILED:
                     Toast.makeText(getApplicationContext(), R.string.connection_failed, Toast.LENGTH_SHORT).show();
-
+                    setResult(CONNECTION_FAILED);
+                    finish();
                     break;
                 case Constants.CONNECTED:
                     String deviceName = msg.getData().getString(Constants.DEVICE_NAME);
                     Toast.makeText(getApplicationContext(), getString(R.string.connected, deviceName), Toast.LENGTH_SHORT).show();
+                    connect = true;
+                    break;
+                case Constants.CONNECTION_CLOSED:
+                    Toast.makeText(getApplicationContext(), R.string.connection_closed, Toast.LENGTH_SHORT).show();
+                    setResult(CONNECTION_CLOSED);
+                    finish();
                     break;
             }
         }
