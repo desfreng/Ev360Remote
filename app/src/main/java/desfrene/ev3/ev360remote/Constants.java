@@ -9,8 +9,6 @@ public final class Constants {
     public final static String DATA_TAG = GLOBAL_TAG + ".data";
     public final static String BLE_TAG = GLOBAL_TAG + ".bluetooth";
 
-//    public final static UUID TARGET_UUID = UUID.fromString("f5b64ebf-f5e3-4a44-8c33-0e6ebfd1b2c3");
-
     public final static boolean LOG_ACTIVATED = false;
     public static final int CONNECTION_LOST = 2;
     public static final int CONNECTION_FAILED = 3;

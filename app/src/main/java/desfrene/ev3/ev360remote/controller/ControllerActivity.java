@@ -169,7 +169,7 @@ public class ControllerActivity extends AppCompatActivity {
 
         Log.i(Constants.FCT_TAG, "TurningLeft");
         pipe.write("TL#".getBytes());
-        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
+        sendPower();
     }
 
     @SuppressLint("DefaultLocale")
@@ -180,8 +180,8 @@ public class ControllerActivity extends AppCompatActivity {
         joystick.setOperational(false);
 
         Log.i(Constants.FCT_TAG, "TurningRight");
-        pipe.write("TL#".getBytes());
-        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
+        pipe.write("TR#".getBytes());
+        sendPower();
     }
 
     void resetWheels() {
@@ -194,6 +194,7 @@ public class ControllerActivity extends AppCompatActivity {
         turnLeft.setOperational(true);
 
         pipe.write("RW#".getBytes());
+        sendNullPower();
     }
 
 
@@ -206,8 +207,7 @@ public class ControllerActivity extends AppCompatActivity {
         turnLeft.setOperational(false);
 
         Log.i(Constants.FCT_TAG, "Start Direction Track");
-        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
-
+        sendPower();
     }
 
     void resetDirection() {
@@ -218,6 +218,8 @@ public class ControllerActivity extends AppCompatActivity {
         turnRight.setOperational(true);
         turnLeft.setOperational(true);
         joystick.setOperational(true);
+
+        sendNullPower();
     }
 
 
@@ -237,6 +239,16 @@ public class ControllerActivity extends AppCompatActivity {
         turnRight.setOperational(true);
         turnLeft.setOperational(true);
 
+        sendNullPower();
+    }
+
+    @SuppressLint("DefaultLocale")
+    void sendPower() {
+        pipe.write(String.format("PO#%d", powerView.getPercent()).getBytes());
+    }
+
+    @SuppressLint("DefaultLocale")
+    void sendNullPower() {
         pipe.write("PO#0".getBytes());
     }
 

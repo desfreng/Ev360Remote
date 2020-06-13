@@ -204,6 +204,9 @@ public class DeviceActivity extends AppCompatActivity {
     }
 
     private void confirmDevice(BluetoothDevice dev, int channel) {
+        if (adapter.isDiscovering())
+            adapter.cancelDiscovery();
+        
         Intent returnData = new Intent();
         returnData.putExtra(TARGET_DEVICE, dev.getAddress());
         returnData.putExtra(TARGET_CHANNEL, channel);
